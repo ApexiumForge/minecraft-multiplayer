@@ -1,0 +1,9 @@
+backend-url: "http://127.0.0.1:3000"
+bridge-secret: "CHANGE_ME"
+poll-seconds: 5
+connect-timeout-seconds: 3
+request-timeout-seconds: 5
+journal-file: "operations.jsonl"
+delivery-enabled: false
+selling-enabled: false
+challenge-rewards-enabled: false

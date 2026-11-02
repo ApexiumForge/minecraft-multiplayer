@@ -1,0 +1,13 @@
+name: SkyBridge
+version: '${version}'
+main: lan.skyblock.skybridge.SkyBridgePlugin
+api-version: '1.21'
+author: SKYBLOCK LAN
+description: Authenticated bridge between Paper and the local SKYBLOCK LAN web service.
+commands:
+  shop:
+    description: SKYBLOCK LAN shop and account linking
+    usage: /shop link
+permissions:
+  skybridge.shop:
+    default: true
