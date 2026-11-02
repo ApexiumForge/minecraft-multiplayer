@@ -1,0 +1,282 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum JobStatus {
+  PENDING
+  CLAIMED
+  APPLIED
+  COMPLETED
+  FAILED
+  AMBIGUOUS
+  CANCELLED
+}
+
+enum LedgerType {
+  STARTING_BALANCE
+  PURCHASE
+  SALE
+  CHALLENGE
+  ADMIN_ADJUSTMENT
+  REFUND
+}
+
+enum ChallengeKind {
+  DAILY
+  LONG_TERM
+}
+
+model Player {
+  id                String              @id @default(cuid())
+  minecraftUuid     String              @unique
+  lastKnownName     String
+  createdAt         DateTime            @default(now())
+  lastSeenAt        DateTime?
+  wallet            Wallet?
+  sessions          Session[]
+  linkCodes         LinkCode[]
+  purchases         Purchase[]
+  sales             SaleJob[]
+  islandProgress    IslandProgress?
+  purchasedUpgrades PurchasedUpgrade[]
+  challenges        ChallengeProgress[]
+  achievements      PlayerAchievement[]
+  inventorySnapshot InventorySnapshot?
+}
+
+model Session {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  playerId  String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+  player    Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, expiresAt])
+}
+
+model LinkCode {
+  id        String    @id @default(cuid())
+  codeHash  String    @unique
+  playerId  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  attempts  Int       @default(0)
+  createdAt DateTime  @default(now())
+  player    Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, expiresAt])
+}
+
+model Wallet {
+  id        String        @id @default(cuid())
+  playerId  String        @unique
+  balance   Int           @default(0)
+  version   Int           @default(0)
+  updatedAt DateTime      @updatedAt
+  player    Player        @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  entries   LedgerEntry[]
+}
+
+model LedgerEntry {
+  id             String     @id @default(cuid())
+  walletId       String
+  type           LedgerType
+  amount         Int
+  balanceAfter   Int
+  idempotencyKey String     @unique
+  referenceType  String?
+  referenceId    String?
+  note           String?
+  createdAt      DateTime   @default(now())
+  wallet         Wallet     @relation(fields: [walletId], references: [id], onDelete: Restrict)
+
+  @@index([walletId, createdAt])
+}
+
+model CatalogItem {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  material    String
+  displayName String
+  category    String
+  quantity    Int
+  buyPrice    Int
+  sellPrice   Int
+  enabled     Boolean    @default(true)
+  stock       Int?
+  unlockKey   String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  purchases   Purchase[]
+  sales       SaleJob[]
+}
+
+model Purchase {
+  id             String       @id @default(cuid())
+  playerId       String
+  catalogItemId  String
+  quantity       Int
+  unitPrice      Int
+  totalPrice     Int
+  idempotencyKey String       @unique
+  status         JobStatus    @default(PENDING)
+  createdAt      DateTime     @default(now())
+  player         Player       @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  catalogItem    CatalogItem  @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+  delivery       DeliveryJob?
+
+  @@index([playerId, createdAt])
+}
+
+model DeliveryJob {
+  id              String    @id @default(cuid())
+  purchaseId      String    @unique
+  operationId     String    @unique
+  status          JobStatus @default(PENDING)
+  claimTokenHash  String?
+  claimedAt       DateTime?
+  appliedAt       DateTime?
+  completedAt     DateTime?
+  attemptCount    Int       @default(0)
+  failureCode     String?
+  failureDetail   String?
+  bridgeJournalId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  purchase        Purchase  @relation(fields: [purchaseId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+}
+
+model SaleJob {
+  id              String      @id @default(cuid())
+  playerId        String
+  catalogItemId   String
+  operationId     String      @unique
+  idempotencyKey  String      @unique
+  quantity        Int
+  unitPrice       Int
+  totalCredit     Int
+  status          JobStatus   @default(PENDING)
+  bridgeJournalId String?
+  claimTokenHash  String?
+  claimedAt       DateTime?
+  appliedAt       DateTime?
+  completedAt     DateTime?
+  attemptCount    Int         @default(0)
+  failureCode     String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  player          Player      @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  catalogItem     CatalogItem @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt])
+}
+
+model InventorySnapshot {
+  id         String   @id @default(cuid())
+  playerId   String   @unique
+  countsJson String
+  updatedAt  DateTime @updatedAt
+  player     Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+}
+
+model IslandProgress {
+  id             String    @id @default(cuid())
+  playerId       String    @unique
+  bentoboxIsland String?   @unique
+  islandLevel    BigInt    @default(0)
+  generatorTier  Int       @default(1)
+  challengeScore Int       @default(0)
+  syncedAt       DateTime?
+  player         Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+}
+
+model UpgradeDefinition {
+  id          String             @id @default(cuid())
+  key         String             @unique
+  name        String
+  description String
+  price       Int
+  maxLevel    Int                @default(1)
+  enabled     Boolean            @default(false)
+  purchases   PurchasedUpgrade[]
+}
+
+model PurchasedUpgrade {
+  id          String            @id @default(cuid())
+  playerId    String
+  upgradeId   String
+  level       Int               @default(1)
+  purchasedAt DateTime          @default(now())
+  player      Player            @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  upgrade     UpgradeDefinition @relation(fields: [upgradeId], references: [id], onDelete: Restrict)
+
+  @@unique([playerId, upgradeId])
+}
+
+model ChallengeDefinition {
+  id          String              @id @default(cuid())
+  key         String              @unique
+  name        String
+  description String
+  kind        ChallengeKind
+  targetType  String
+  targetValue Int
+  coinReward  Int
+  enabled     Boolean             @default(true)
+  progress    ChallengeProgress[]
+}
+
+model ChallengeProgress {
+  id          String              @id @default(cuid())
+  playerId    String
+  challengeId String
+  periodKey   String              @default("lifetime")
+  progress    Int                 @default(0)
+  completedAt DateTime?
+  rewardedAt  DateTime?
+  player      Player              @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  challenge   ChallengeDefinition @relation(fields: [challengeId], references: [id], onDelete: Restrict)
+
+  @@unique([playerId, challengeId, periodKey])
+}
+
+model Achievement {
+  id          String              @id @default(cuid())
+  key         String              @unique
+  name        String
+  description String
+  players     PlayerAchievement[]
+}
+
+model PlayerAchievement {
+  id            String      @id @default(cuid())
+  playerId      String
+  achievementId String
+  earnedAt      DateTime    @default(now())
+  player        Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Restrict)
+
+  @@unique([playerId, achievementId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String?
+  detailJson String
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
