@@ -1,0 +1,21 @@
+**/node_modules/
+**/.next/
+**/build/
+**/.gradle/
+**/.env
+**/.env.local
+!**/.env.example
+**/*.db
+**/*.db-journal
+**/*.db-wal
+**/*.db-shm
+# The Paper directory is live runtime state. Keep only documentation and the
+# sanitized properties template in source control.
+server/*
+!server/README.md
+!server/config/
+server/config/*
+!server/config/server.properties.example
+backups/
+*.zip
+*.log
